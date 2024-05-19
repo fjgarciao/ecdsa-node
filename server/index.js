@@ -2,14 +2,21 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 const port = 3042;
+var log4js = require("log4js");
+var logger = log4js.getLogger();
+logger.level = "debug";
+
+const { secp256k1 } = require("ethereum-cryptography/secp256k1");
+const { keccak256 } = require("ethereum-cryptography/keccak");
+const { utf8ToBytes } = require("ethereum-cryptography/utils");
 
 app.use(cors());
 app.use(express.json());
 
 const balances = {
-  "afbc7cd0f0beef8d9c2a59e4e332e44d9586450d": 100,
-  "83a6e08512731b729be52563004bb341a868f7ea": 50,
-  "00c6191f79b2a784f859bb05397b585d91604672": 75,
+  "02672c7beb593a778e21c08ae86088b5854395c1fdadf742f75d667db66799f313": 100,
+  "02df49e7def1c94218712ec041c3001a089c21d401569061bcc740f7461d9dc81a": 50,
+  "0263d7cf81cd31bd9f70f4dc2968b2e0a21b89bc0456023e2112f82ddf9fd0ede5": 75,
 };
 
 app.get("/balance/:address", (req, res) => {
@@ -19,17 +26,31 @@ app.get("/balance/:address", (req, res) => {
 });
 
 app.post("/send", (req, res) => {
-  const { sender, recipient, amount } = req.body;
+  logger.debug(`Request body: ${JSON.stringify(req.body)}`);
+  const { transaction, signature } = req.body;
+  const { recipient, amount } = transaction;
+  const { r, s, recovery } = signature;
 
-  setInitialBalance(sender);
-  setInitialBalance(recipient);
+  const sig = new secp256k1.Signature(BigInt(r), BigInt(s), recovery);
+  const data = JSON.stringify(transaction);
+  const hash = keccak256(utf8ToBytes(data));
 
-  if (balances[sender] < amount) {
-    res.status(400).send({ message: "Not enough funds!" });
+  const sender = sig.recoverPublicKey(hash).toHex();
+  logger.debug(`Sender (public key): ${sender}`);
+
+  if (sender) {
+    setInitialBalance(sender);
+    setInitialBalance(recipient);
+
+    if (balances[sender] < amount) {
+      res.status(400).send({ message: "Not enough funds!" });
+    } else {
+      balances[sender] -= amount;
+      balances[recipient] += amount;
+      res.send({ balance: balances[sender] });
+    }
   } else {
-    balances[sender] -= amount;
-    balances[recipient] += amount;
-    res.send({ balance: balances[sender] });
+    res.status(400).send({ message: "Invalid signature!" });
   }
 });
 
