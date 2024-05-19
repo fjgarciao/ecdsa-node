@@ -7,9 +7,9 @@ app.use(cors());
 app.use(express.json());
 
 const balances = {
-  "0x1": 100,
-  "0x2": 50,
-  "0x3": 75,
+  "afbc7cd0f0beef8d9c2a59e4e332e44d9586450d": 100,
+  "83a6e08512731b729be52563004bb341a868f7ea": 50,
+  "00c6191f79b2a784f859bb05397b585d91604672": 75,
 };
 
 app.get("/balance/:address", (req, res) => {
